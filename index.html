@@ -695,11 +695,14 @@
     updateQRCode();
   }
 
-  function updateQRCode() {
+ function updateQRCode() {
     const qrDiv = document.getElementById('qrcode');
     qrDiv.innerHTML = "";
     const repNo = document.getElementById('lbl_report_no').innerText;
-    const reportData = `https://sinaiclinic.example/verify?rep=${repNo}&patient=${encodeURIComponent(document.getElementById('in_name').value)}`;
+    
+    // الرابط الفعلي لصفحة التحقق الخاصة بك على GitHub Pages
+    const reportData = `https://aymanelsherif9-collab.github.io/sinai-medical-report/verify.html?rep=${repNo}`;
+    
     new QRCode(qrDiv, {
       text: reportData,
       width: 60,
