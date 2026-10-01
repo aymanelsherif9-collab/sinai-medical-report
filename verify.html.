@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sinai Clinic Hospital - Document Authenticity Verification</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root {
+      --primary-blue: #1A73E8;
+      --navy-blue: #0D47A1;
+      --medical-red: #D32F2F;
+      --silver-gray: #F0F4F8;
+      --border-gray: #CFD8DC;
+      --success-green: #2E7D32;
+      --dark-text: #263238;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    body { background-color: var(--silver-gray); color: var(--dark-text); padding: 20px 12px; display: flex; justify-content: center; }
+
+    .verify-card {
+      background: #fff; width: 100%; max-width: 600px; border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.08); overflow: hidden; border-top: 5px solid var(--primary-blue);
+    }
+
+    .card-header {
+      padding: 20px; text-align: center; border-bottom: 1px solid var(--border-gray); background: #FAFBFD;
+    }
+    .logo-badge {
+      display: inline-block; background: #fff; border: 2px solid var(--primary-blue); border-radius: 8px; padding: 6px 14px; text-align: center; margin-bottom: 8px;
+    }
+    .logo-text-en { font-size: 18px; font-weight: 900; color: var(--primary-blue); }
+    .logo-text-ar { font-size: 17px; font-weight: bold; color: var(--primary-blue); margin-top: -3px; }
+    .logo-sub { font-size: 9px; color: var(--medical-red); font-weight: 800; letter-spacing: 0.5px; }
+
+    .verify-badge {
+      display: inline-flex; align-items: center; gap: 8px; background: #E8F5E9; color: var(--success-green);
+      padding: 6px 14px; border-radius: 20px; font-weight: 700; font-size: 13px; margin-top: 10px; border: 1px solid #C8E6C9;
+    }
+    .verify-badge.pending {
+      background: #FFF3E0; color: #E65100; border-color: #FFE0B2;
+    }
+
+    .card-body { padding: 22px; }
+    .info-group { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #ECEFF1; font-size: 13px; }
+    .info-label { color: #546E7A; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+    .info-val { font-weight: bold; color: var(--navy-blue); text-align: right; }
+
+    .signatures-summary {
+      margin-top: 20px; background: #F8F9FA; border-radius: 8px; padding: 12px 15px; border: 1px dashed var(--border-gray);
+    }
+    .sig-row { display: flex; justify-content: space-between; align-items: center; font-size: 12px; margin-bottom: 6px; }
+    .sig-row:last-child { margin-bottom: 0; }
+
+    .card-footer {
+      padding: 14px 20px; background: #ECEFF1; text-align: center; font-size: 11px; color: #78909C; line-height: 1.4;
+    }
+    .loading-state { text-align: center; padding: 40px 20px; color: #546E7A; }
+  </style>
+</head>
+<body>
+
+<div class="verify-card">
+  <div class="card-header">
+    <div class="logo-badge">
+      <div class="logo-text-en">SINAICLINIC</div>
+      <div class="logo-text-ar">سينا كلينيك</div>
+      <div class="logo-sub">HOSPITAL مستشفى</div>
+    </div>
+    <h3 style="color: var(--navy-blue); font-size: 16px;">Medical Document Verification</h3>
+    <div style="font-size: 11px; color: #78909C;">Sinai Clinic Hospital - Sharm El-Sheikh</div>
+    <div id="statusBadgeContainer">
+      <div class="verify-badge"><i class="fa-solid fa-spinner fa-spin"></i> Verifying authenticity...</div>
+    </div>
+  </div>
+
+  <div class="card-body" id="reportContent" style="display: none;">
+    <div class="info-group">
+      <span class="info-label"><i class="fa-solid fa-hashtag"></i> Report Number</span>
+      <span class="info-val" id="val_rep_no">--</span>
+    </div>
+    <div class="info-group">
+      <span class="info-label"><i class="fa-solid fa-user"></i> Patient Name</span>
+      <span class="info-val" id="val_name">--</span>
+    </div>
+    <div class="info-group">
+      <span class="info-label"><i class="fa-solid fa-id-card"></i> Medical Record No (MRN)</span>
+      <span class="info-val" id="val_mrn">--</span>
+    </div>
+    <div class="info-group">
+      <span class="info-label"><i class="fa-solid fa-shield-halved"></i> Insurance / Payer</span>
+      <span class="info-val" id="val_ins">--</span>
+    </div>
+    <div class="info-group">
+      <span class="info-label"><i class="fa-solid fa-stethoscope"></i> Primary Diagnosis</span>
+      <span class="info-val" id="val_diag">--</span>
+    </div>
+
+    <!-- تأكيد الاعتماد والتوقيع -->
+    <div class="signatures-summary">
+      <div class="sig-row">
+        <span><i class="fa-solid fa-user-doctor" style="color:var(--navy-blue);"></i> Attending Physician:</span>
+        <strong id="val_doc" style="color:var(--navy-blue);">--</strong>
+      </div>
+      <div class="sig-row">
+        <span><i class="fa-solid fa-stamp" style="color:var(--medical-red);"></i> Medical Director:</span>
+        <strong id="val_dir" style="color:var(--medical-red);">--</strong>
+      </div>
+    </div>
+  </div>
+
+  <div class="loading-state" id="loadingState">
+    <i class="fa-solid fa-circle-notch fa-spin fa-2x" style="color: var(--primary-blue); margin-bottom: 10px;"></i>
+    <div>Fetching certified record from Sinai Clinic cloud server...</div>
+  </div>
+
+  <div class="card-footer">
+    Verified Medical Document Protection System<br>
+    This official digital record is issued and protected by Sinai Clinic Hospital, Hadaba, Sharm El-Sheikh.
+  </div>
+</div>
+
+<script>
+  const SUPABASE_URL = "https://ogabsrwcmuhtxdbuxisy.supabase.co";
+  const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9nYWJzcndjbXVodHhkYnV4aXN5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA4MzkwMjgsImV4cCI6MjEwNjQxNTAyOH0.p_ttqUeKnK1y4IrvA4kQ-QKLebn3FTSO3wfC9pLswhw";
+  const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  async function verifyDocument() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const reportNo = urlParams.get('rep');
+
+    const badgeContainer = document.getElementById('statusBadgeContainer');
+    const loadingState = document.getElementById('loadingState');
+    const reportContent = document.getElementById('reportContent');
+
+    if (!reportNo) {
+      loadingState.style.display = "none";
+      badgeContainer.innerHTML = `<div class="verify-badge pending"><i class="fa-solid fa-triangle-exclamation"></i> Invalid QR: Missing Report ID</div>`;
+      return;
+    }
+
+    try {
+      const { data, error } = await supabaseClient
+        .from('medical_reports')
+        .select('*')
+        .eq('report_no', reportNo)
+        .single();
+
+      if (error || !data) {
+        loadingState.style.display = "none";
+        badgeContainer.innerHTML = `<div class="verify-badge pending" style="color:var(--medical-red); background:#FFEBEE; border-color:#FFCDD2;"><i class="fa-solid fa-circle-xmark"></i> Document Not Found</div>`;
+        return;
+      }
+
+      // عرض البيانات بنجاح
+      loadingState.style.display = "none";
+      reportContent.style.display = "block";
+
+      document.getElementById('val_rep_no').innerText = data.report_no;
+      document.getElementById('val_name').innerText = data.patient_name;
+      document.getElementById('val_mrn').innerText = data.mrn;
+      document.getElementById('val_ins').innerText = data.insurance_company || "Direct / Self-pay";
+      document.getElementById('val_diag').innerText = `${data.diagnosis || 'Undisclosed'} ${data.icd_10 ? '(' + data.icd_10 + ')' : ''}`;
+      document.getElementById('val_doc').innerText = (data.doctor_signed_at ? "Signed & Certified" : "Pending Signature");
+      document.getElementById('val_dir').innerText = (data.status === 'final' ? "APPROVED & STAMPED" : "Pending Final Approval");
+
+      if (data.status === 'final') {
+        badgeContainer.innerHTML = `<div class="verify-badge"><i class="fa-solid fa-circle-check"></i> Authentic & Fully Certified Document</div>`;
+      } else {
+        badgeContainer.innerHTML = `<div class="verify-badge pending"><i class="fa-solid fa-clock"></i> In Progress (${data.status.toUpperCase()})</div>`;
+      }
+
+    } catch (err) {
+      loadingState.style.display = "none";
+      badgeContainer.innerHTML = `<div class="verify-badge pending"><i class="fa-solid fa-triangle-exclamation"></i> Server Communication Error</div>`;
+    }
+  }
+
+  window.onload = verifyDocument;
+</script>
+
+</body>
+</html>
