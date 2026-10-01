@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Sinai Clinic Hospital - Workflow & Approval System</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root {
+      --primary-blue: #1A73E8;
+      --navy-blue: #0D47A1;
+      --medical-red: #D32F2F;
+      --silver-gray: #ECEFF1;
+      --border-gray: #CFD8DC;
+      --dark-text: #263238;
+      --bg-light: #F0F4F8;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    body { background-color: var(--bg-light); color: var(--dark-text); padding: 15px; }
+
+    /* شريط اختيار الدور العلوي */
+    .role-bar {
+      max-width: 1600px; margin: 0 auto 15px auto; background: #fff; padding: 10px 20px;
+      border-radius: 10px; display: flex; justify-content: space-between; align-items: center;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+    .role-options { display: flex; gap: 10px; align-items: center; }
+    .role-btn {
+      padding: 7px 16px; border: 1px solid var(--border-gray); background: #fff; border-radius: 6px;
+      cursor: pointer; font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 8px; transition: 0.2s;
+    }
+    .role-btn.active { background: var(--navy-blue); color: #fff; border-color: var(--navy-blue); }
+    .cloud-status { font-size: 12px; color: #546E7A; display: flex; align-items: center; gap: 6px; }
+
+    .app-container { display: flex; gap: 20px; max-width: 1600px; margin: 0 auto; }
+    
+    .form-panel { flex: 1.1; background: #fff; padding: 22px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.06); height: calc(100vh - 90px); overflow-y: auto; }
+    .preview-panel { flex: 1.3; background: #455A64; padding: 20px; border-radius: 12px; height: calc(100vh - 90px); overflow-y: auto; display: flex; flex-direction: column; align-items: center; }
+
+    .section-title { font-size: 13.5px; font-weight: bold; color: var(--navy-blue); margin: 12px 0 8px 0; border-bottom: 2px solid var(--silver-gray); padding-bottom: 4px; display: flex; align-items: center; justify-content: space-between; }
+    .form-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; margin-bottom: 8px; }
+    .form-group { display: flex; flex-direction: column; }
+    .form-group label { font-size: 11px; font-weight: 600; color: #546E7A; margin-bottom: 3px; }
+    .form-group input, .form-group select, .form-group textarea {
+      padding: 6px 10px; border: 1px solid var(--border-gray); border-radius: 6px; font-size: 12px; outline: none; transition: 0.2s;
+    }
+    .form-group input:focus, .form-group textarea:focus { border-color: var(--primary-blue); }
+    textarea { resize: vertical; min-height: 38px; }
+
+    .btn-group { display: flex; gap: 10px; margin-top: 15px; position: sticky; bottom: 0; background: #fff; padding-top: 10px; border-top: 1px solid var(--border-gray); }
+    .btn { padding: 8px 14px; border: none; border-radius: 6px; font-size: 12.5px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: 0.2s; }
+    .btn-primary { background: var(--primary-blue); color: #fff; }
+    .btn-success { background: #2E7D32; color: #fff; }
+    .btn-warning { background: #E65100; color: #fff; }
+    .btn-danger { background: var(--medical-red); color: #fff; }
+    .btn-secondary { background: #607D8B; color: #fff; }
+    .btn-sm { padding: 4px 8px; font-size: 11px; }
+    .btn:hover { opacity: 0.9; }
+
+    .dynamic-input-table { width: 100%; border-collapse: collapse; margin-top: 5px; font-size: 11.5px; }
+    .dynamic-input-table th { background: #ECEFF1; padding: 5px; text-align: left; color: var(--navy-blue); }
+    .dynamic-input-table td { padding: 4px; }
+    .dynamic-input-table input { width: 100%; padding: 4px 6px; border: 1px solid var(--border-gray); border-radius: 4px; font-size: 11.5px; }
+
+    /* التقرير للطباعة والعرض */
+    .sheet {
+      width: 210mm; min-height: 297mm; padding: 15mm 14mm; background: #fff; box-shadow: 0 0 12px rgba(0,0,0,0.3); border-radius: 2px;
+      display: flex; flex-direction: column; justify-content: space-between; position: relative;
+    }
+    .sheet.rtl-mode { direction: rtl; }
+    .sheet.rtl-mode .report-header-meta { text-align: left; }
+    .sheet.rtl-mode .field-label { margin-left: 5px; margin-right: 0; }
+    .sheet.rtl-mode .rep-table th { text-align: right; }
+
+    .report-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--navy-blue); padding-bottom: 8px; margin-bottom: 10px; }
+    .clinic-logo-area { display: flex; align-items: center; gap: 12px; }
+    .logo-badge { background: #fff; border: 2px solid var(--primary-blue); border-radius: 6px; padding: 4px 8px; text-align: center; }
+    .logo-text-en { font-size: 16px; font-weight: 900; color: var(--primary-blue); }
+    .logo-text-ar { font-size: 15px; font-weight: bold; color: var(--primary-blue); margin-top: -3px; }
+    .logo-sub { font-size: 8.5px; color: var(--medical-red); font-weight: 800; letter-spacing: 0.5px; }
+
+    .report-header-meta { font-size: 10.5px; text-align: right; }
+    .report-number { font-size: 13px; font-weight: bold; color: var(--navy-blue); }
+    .status-badge { display: inline-block; padding: 2px 7px; border-radius: 4px; font-size: 9.5px; font-weight: bold; margin-top: 3px; }
+    .status-draft { background: #ECEFF1; color: #546E7A; }
+    .status-doctor { background: #FFF3E0; color: #E65100; }
+    .status-final { background: #E8F5E9; color: #2E7D32; }
+
+    .patient-box { background: var(--silver-gray); border-left: 4px solid var(--primary-blue); padding: 7px 12px; border-radius: 4px; margin-bottom: 10px; }
+    .sheet.rtl-mode .patient-box { border-left: none; border-right: 4px solid var(--primary-blue); }
+    .patient-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px 10px; font-size: 11px; }
+    .patient-grid div { display: flex; align-items: baseline; }
+    .field-label { font-weight: bold; color: var(--navy-blue); margin-right: 4px; }
+    .field-val { color: #263238; font-weight: 500; }
+
+    .clinical-block { margin-bottom: 8px; }
+    .block-header { font-size: 11px; font-weight: bold; color: var(--navy-blue); background: #ECEFF1; padding: 3px 6px; border-radius: 3px; margin-bottom: 3px; }
+    .block-content { font-size: 10.5px; line-height: 1.4; color: #37474F; padding: 0 4px; }
+
+    .vitals-strip { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+    .vital-pill { background: #F4F6F7; border: 1px solid var(--border-gray); padding: 2px 7px; border-radius: 14px; font-size: 10px; font-weight: 600; }
+    .vital-pill span { color: var(--medical-red); margin-left: 3px; }
+
+    .rep-table { width: 100%; border-collapse: collapse; margin-top: 4px; font-size: 10.5px; }
+    .rep-table th { background: var(--navy-blue); color: #fff; padding: 3px 6px; text-align: left; font-weight: 600; }
+    .rep-table td { border-bottom: 1px solid var(--border-gray); padding: 3px 6px; color: #37474F; }
+
+    .fitness-box { background: #FFF8E1; border: 1px solid #FFE082; padding: 5px 8px; border-radius: 4px; font-size: 10.5px; color: #795548; margin-top: 5px; }
+
+    .report-footer { margin-top: auto; border-top: 1px solid var(--border-gray); padding-top: 8px; }
+    .sig-grid { display: flex; justify-content: space-between; align-items: flex-end; }
+    .sig-box { text-align: center; width: 160px; font-size: 10px; }
+    .sig-line { border-bottom: 1px dashed #78909C; height: 30px; margin-bottom: 3px; display: flex; align-items: center; justify-content: center; font-style: italic; color: #90A4AE; font-size: 11px; }
+    .qr-container { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+    .qr-caption { font-size: 8px; color: #78909C; }
+  </style>
+</head>
+<body>
+
+<!-- شريط اختيار الدور للمستخدم -->
+<div class="role-bar">
+  <div class="role-options">
+    <span style="font-size: 12px; font-weight: bold; color: var(--navy-blue); margin-right: 5px;"><i class="fa-solid fa-user-shield"></i> Active Role:</span>
+    <button class="role-btn active" id="roleBtnClerk" onclick="switchRole('clerk')"><i class="fa-solid fa-pen-to-square"></i> Insurance Clerk</button>
+    <button class="role-btn" id="roleBtnDoc" onclick="switchRole('doctor')"><i class="fa-solid fa-user-doctor"></i> Attending Doctor</button>
+    <button class="role-btn" id="roleBtnDir" onclick="switchRole('director')"><i class="fa-solid fa-stamp"></i> Medical Director</button>
+  </div>
+  <div class="cloud-status">
+    <i class="fa-solid fa-circle" style="color: #2E7D32; font-size: 8px;"></i>
+    <span>Supabase Connected</span>
+    <button class="btn btn-secondary btn-sm" onclick="loadLatestReports()" style="margin-left: 10px;"><i class="fa-solid fa-rotate"></i> Sync Cloud</button>
+  </div>
+</div>
+
+<div class="app-container">
+  
+  <!-- لوحة الإدخال والتحكم -->
+  <div class="form-panel">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+      <h3 style="color: var(--navy-blue); font-size: 15px;" id="panelTitle"><i class="fa-solid fa-file-pen"></i> New Medical Report</h3>
+      <button class="btn btn-secondary btn-sm" onclick="toggleLanguage()"><i class="fa-solid fa-language"></i> <span id="langBtnText">Convert to Arabic</span></button>
+    </div>
+
+    <!-- اختيار التقرير من السحابة -->
+    <div style="background: #E3F2FD; padding: 8px 12px; border-radius: 6px; margin-bottom: 12px; display: flex; align-items: center; gap: 10px;">
+      <label style="font-size: 11px; font-weight: bold; color: var(--navy-blue); white-space: nowrap;"><i class="fa-solid fa-folder-open"></i> Cloud Reports:</label>
+      <select id="cloudReportSelect" onchange="fetchReportDetails(this.value)" style="flex:1; padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border-gray); font-size: 12px;">
+        <option value="">-- Select a saved report from cloud --</option>
+      </select>
+    </div>
+
+    <div id="editableFieldsArea">
+      <!-- 1. المريض والزيارة -->
+      <div class="section-title"><span><i class="fa-solid fa-user"></i> Patient & Encounter Details</span></div>
+      <div class="form-row">
+        <div class="form-group"><label>Patient Name</label><input type="text" id="in_name" value="Alexander Petrov" oninput="renderReport()"></div>
+        <div class="form-group"><label>MRN</label><input type="text" id="in_mrn" value="SC-98421" oninput="renderReport()"></div>
+        <div class="form-group"><label>Age / Gender</label><input type="text" id="in_age" value="44 yrs / Male" oninput="renderReport()"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Nationality & ID</label><input type="text" id="in_nat" value="Russian - Pass #758921" oninput="renderReport()"></div>
+        <div class="form-group"><label>Patient Type</label><input type="text" id="in_type" value="Emergency Department" oninput="renderReport()"></div>
+        <div class="form-group"><label>Attending Doctor</label><input type="text" id="in_doc" value="Dr. Ahmed Mansour" oninput="renderReport()"></div>
+      </div>
+
+      <!-- 2. التأمين -->
+      <div class="section-title"><span><i class="fa-solid fa-shield-halved"></i> Insurance & Approvals</span></div>
+      <div class="form-row">
+        <div class="form-group"><label>Insurance Company</label><input type="text" id="in_ins" value="Allianz Worldwide Care" oninput="renderReport()"></div>
+        <div class="form-group"><label>GOP / Approval No.</label><input type="text" id="in_gop" value="GOP-SHM-2026-90" oninput="renderReport()"></div>
+        <div class="form-group"><label>Location / Room</label><input type="text" id="in_room" placeholder="Empty if not admitted" oninput="renderReport()"></div>
+      </div>
+
+      <!-- 3. العلامات الحيوية -->
+      <div class="section-title"><span><i class="fa-solid fa-heart-pulse"></i> Vital Signs</span></div>
+      <div class="form-row">
+        <div class="form-group"><label>BP (mmHg)</label><input type="text" id="in_bp" value="125/80" oninput="renderReport()"></div>
+        <div class="form-group"><label>Pulse (/min)</label><input type="text" id="in_pulse" value="78" oninput="renderReport()"></div>
+        <div class="form-group"><label>Temp (°C)</label><input type="text" id="in_temp" placeholder="" oninput="renderReport()"></div>
+        <div class="form-group"><label>SpO2 (%)</label><input type="text" id="in_spo2" value="99%" oninput="renderReport()"></div>
+        <div class="form-group"><label>Pain (0-10)</label><input type="text" id="in_pain" value="7/10" oninput="renderReport()"></div>
+      </div>
+
+      <!-- 4. الفحص والتحاليل -->
+      <div class="section-title"><span><i class="fa-solid fa-notes-medical"></i> Clinical Examination</span></div>
+      <div class="form-group" style="margin-bottom: 6px;">
+        <label>Chief Complaint & Symptoms</label>
+        <textarea id="in_complaint" oninput="renderReport()">Acute severe left flank pain radiating to the groin with nausea since early morning.</textarea>
+      </div>
+      <div class="form-group" style="margin-bottom: 6px;">
+        <label>Physical Examination & Findings</label>
+        <textarea id="in_exam" oninput="renderReport()">Conscious, distressed due to pain. Abdomen soft, severe left renal angle tenderness. No peritoneal signs.</textarea>
+      </div>
+      <div class="form-group" style="margin-bottom: 6px;">
+        <label>Relevant Medical History / Allergies</label>
+        <textarea id="in_history" placeholder="Leave empty if none reported" oninput="renderReport()"></textarea>
+      </div>
+      <div class="form-group" style="margin-bottom: 6px;">
+        <label>Investigations Summary</label>
+        <textarea id="in_invest" oninput="renderReport()">Urinalysis: Microscopic hematuria (+3 RBCs). US Abdomen & Pelvis: 5mm calculus at left distal ureter with mild hydronephrosis.</textarea>
+      </div>
+
+      <!-- 5. التشخيص -->
+      <div class="section-title"><span><i class="fa-solid fa-stethoscope"></i> Diagnoses</span></div>
+      <div class="form-row">
+        <div class="form-group" style="flex:2;"><label>Primary Diagnosis</label><input type="text" id="in_diag" value="Left Ureteric Calculus with Renal Colic" oninput="renderReport()"></div>
+        <div class="form-group"><label>ICD-10 Code</label><input type="text" id="in_icd" value="N20.1" oninput="renderReport()"></div>
+      </div>
+
+      <!-- 6. جدول الأدوية -->
+      <div class="section-title">
+        <span><i class="fa-solid fa-pills"></i> Medication Plan</span>
+        <button class="btn btn-primary btn-sm" onclick="addMedRow()"><i class="fa-solid fa-plus"></i> Add Drug</button>
+      </div>
+      <table class="dynamic-input-table" id="medInputTable">
+        <thead>
+          <tr><th>Drug Name</th><th>Dose</th><th>Route</th><th>Frequency</th><th>Action</th></tr>
+        </thead>
+        <tbody id="medInputBody">
+          <tr>
+            <td><input type="text" class="med-name" value="Ketorolac (Ketolac)" oninput="renderReport()"></td>
+            <td><input type="text" class="med-dose" value="30 mg" oninput="renderReport()"></td>
+            <td><input type="text" class="med-route" value="IV" oninput="renderReport()"></td>
+            <td><input type="text" class="med-freq" value="Once stat" oninput="renderReport()"></td>
+            <td><button class="btn btn-danger btn-sm" onclick="deleteMedRow(this)"><i class="fa-solid fa-trash"></i></button></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- 7. التوصيات والإجازة -->
+      <div class="section-title"><span><i class="fa-solid fa-clipboard-check"></i> Recommendations & Fitness</span></div>
+      <div class="form-group" style="margin-bottom: 6px;">
+        <label>Recommendations & Follow-up</label>
+        <textarea id="in_plan" oninput="renderReport()">Increase fluid intake. Urology follow-up within 48 hours.</textarea>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Sick Leave</label><input type="text" id="in_leave" value="Recommended 3 days medical rest" oninput="renderReport()"></div>
+        <div class="form-group"><label>Fitness / Travel</label><input type="text" id="in_fit" value="Fit for travel after pain resolution" oninput="renderReport()"></div>
+      </div>
+    </div>
+
+    <!-- أزرار الإجراءات المتغيرة ديناميكياً حسب الدور -->
+    <div class="btn-group" id="actionButtonsArea">
+      <!-- تُملأ بواسطة JavaScript بحسب الدور المختار -->
+    </div>
+  </div>
+
+  <!-- لوحة المعاينة المباشرة للتقرير النهائي -->
+  <div class="preview-panel">
+    <div class="sheet" id="reportSheet">
+      
+      <div>
+        <div class="report-header">
+          <div class="clinic-logo-area">
+            <div class="logo-badge">
+              <div class="logo-text-en">SINAICLINIC</div>
+              <div class="logo-text-ar">سينا كلينيك</div>
+              <div class="logo-sub">HOSPITAL مستشفى</div>
+            </div>
+            <div>
+              <h2 id="lbl_report_title" style="color: var(--navy-blue); font-size: 15px; font-weight: 800;">MEDICAL REPORT</h2>
+              <div style="font-size: 9.5px; color: #78909C;">Sinai Clinic Hospital - Sharm El-Sheikh</div>
+            </div>
+          </div>
+          <div class="report-header-meta">
+            <div class="report-number" id="lbl_report_no">MR-2026-000001</div>
+            <div style="color: #78909C; font-size: 9.5px;" id="lbl_issued_date">Issued: 01/10/2026</div>
+            <div class="status-badge status-draft" id="lbl_status">DRAFT</div>
+          </div>
+        </div>
+
+        <div class="patient-box">
+          <div class="patient-grid" id="patientInfoGrid"></div>
+        </div>
+
+        <div class="vitals-strip" id="vitalsStrip"></div>
+        <div id="clinicalBlocksContainer"></div>
+        <div id="medicationSection" style="margin-bottom: 10px;"></div>
+        <div id="fitnessSection"></div>
+      </div>
+
+      <div class="report-footer">
+        <div class="sig-grid">
+          <div class="sig-box">
+            <div class="field-label" id="lbl_doc_title" style="margin-bottom: 2px;">Attending Physician</div>
+            <div class="sig-line" id="out_doc_sig">Pending Signature</div>
+            <div style="font-size: 8.5px; color: #78909C;" id="doc_sig_status">Waiting for Doctor review</div>
+          </div>
+
+          <div class="qr-container">
+            <div id="qrcode"></div>
+            <div class="qr-caption" id="lbl_qr_verify">Scan to verify document authenticity</div>
+          </div>
+
+          <div class="sig-box">
+            <div class="field-label" id="lbl_dir_title" style="margin-bottom: 2px;">Medical Director Approval</div>
+            <div class="sig-line" id="out_dir_sig">Pending Approval</div>
+            <div style="font-size: 8.5px; color: #78909C;" id="dir_sig_status">Sinai Clinic Administration</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+<script>
+  const SUPABASE_URL = "https://ogabsrwcmuhtxdbuxisy.supabase.co";
+  const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9nYWJzcndjbXVodHhkYnV4aXN5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA4MzkwMjgsImV4cCI6MjEwNjQxNTAyOH0.p_ttqUeKnK1y4IrvA4kQ-QKLebn3FTSO3wfC9pLswhw";
+  const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  let currentRole = 'clerk';
+  let currentReportId = null;
+  let currentReportStatus = 'draft';
+  let currentLang = 'en';
+
+  const dict = {
+    en: {
+      reportTitle: "MEDICAL REPORT", btnLang: "Convert to Arabic",
+      statusDraft: "DRAFT REPORT", statusPendingDoctor: "PENDING DOCTOR SIGN", statusPendingDirector: "PENDING MEDICAL DIRECTOR", statusFinal: "VERIFIED & APPROVED",
+      name: "Patient Name:", mrn: "MRN:", age: "Age/Gender:", nat: "Nationality/ID:",
+      type: "Encounter:", ins: "Insurance:", gop: "GOP / Ref:", room: "Location/Bed:",
+      complaintTitle: "Chief Complaint & Clinical Context",
+      historyTitle: "Relevant Medical History / Allergies",
+      examTitle: "Physical Examination Findings",
+      investTitle: "Diagnostic Investigations & Lab Findings",
+      diagTitle: "Confirmed Diagnosis & ICD-10",
+      medTitle: "Medication Plan & Administered Treatment",
+      planTitle: "Recommendations, Follow-up & Red Flags",
+      fitnessTitle: "Medical Leave & Fitness Statement",
+      physician: "Attending Physician", director: "Medical Director Approval",
+      qrText: "Scan to verify document authenticity",
+      thDrug: "Medication / Drug Name", thDose: "Dose", thRoute: "Route", thFreq: "Frequency"
+    },
+    ar: {
+      reportTitle: "تقرير طبي معتمد", btnLang: "التحويل للإنجليزية",
+      statusDraft: "مسودة تقرير", statusPendingDoctor: "بانتظار توقيع الطبيب المعالج", statusPendingDirector: "بانتظار اعتماد المدير الطبي", statusFinal: "وثيقة طبية معتمدة ومحققة",
+      name: "اسم المريض:", mrn: "رقم الملف الطبي:", age: "السن / النوع:", nat: "الجنسية / الإثبات:",
+      type: "نوع الزيارة:", ins: "جهة التأمين:", gop: "رقم الموافقة:", room: "مكان الحجز:",
+      complaintTitle: "الشكوى الرئيسية والأعراض السريرية",
+      historyTitle: "التاريخ المرضي السابق والحساسية",
+      examTitle: "الفحص الإكلينيكي والعلامات السريرية",
+      investTitle: "الفحوصات المعملية والأشعة التشخيصية",
+      diagTitle: "التشخيص الطبي والترميز الدولي (ICD-10)",
+      medTitle: "خطة العلاج الدوائي المصروف",
+      planTitle: "التوصيات الطبية والمتابعة وعلامات الخطورة",
+      fitnessTitle: "إفادة الإجازة المرضية واللياقة الطبية",
+      physician: "الطبيب المعالج", director: "اعتماد المدير الطبي للمستشفى",
+      qrText: "امسح الرمز للتحقق من صحة المستند رسمياً",
+      thDrug: "اسم الدواء", thDose: "الجرعة", thRoute: "طريقة الإعطاء", thFreq: "التكرار / المدة"
+    }
+  };
+
+  function switchRole(role) {
+    currentRole = role;
+    document.querySelectorAll('.role-btn').forEach(b => b.classList.remove('active'));
+    if (role === 'clerk') document.getElementById('roleBtnClerk').classList.add('active');
+    if (role === 'doctor') document.getElementById('roleBtnDoc').classList.add('active');
+    if (role === 'director') document.getElementById('roleBtnDir').classList.add('active');
+    updateActionButtons();
+  }
+
+  function updateActionButtons() {
+    const area = document.getElementById('actionButtonsArea');
+    const isLocked = currentReportStatus === 'final';
+
+    if (currentRole === 'clerk') {
+      area.innerHTML = `
+        <button class="btn btn-success" onclick="saveToSupabase('pending_doctor')" ${isLocked ? 'disabled' : ''}><i class="fa-solid fa-paper-plane"></i> Save & Send to Doctor</button>
+        <button class="btn btn-secondary" onclick="saveToSupabase('draft')" ${isLocked ? 'disabled' : ''}><i class="fa-solid fa-floppy-disk"></i> Save Draft</button>
+        <button class="btn btn-danger" onclick="window.print()"><i class="fa-solid fa-print"></i> Print / PDF</button>
+      `;
+    } else if (currentRole === 'doctor') {
+      area.innerHTML = `
+        <button class="btn btn-warning" onclick="doctorSignAndForward()" ${isLocked || currentReportStatus !== 'pending_doctor' ? 'disabled' : ''}><i class="fa-solid fa-signature"></i> Sign & Forward to Director</button>
+        <button class="btn btn-secondary" onclick="saveToSupabase(currentReportStatus)" ${isLocked ? 'disabled' : ''}><i class="fa-solid fa-pen"></i> Save Corrections</button>
+        <button class="btn btn-danger" onclick="window.print()"><i class="fa-solid fa-print"></i> Print / PDF</button>
+      `;
+    } else if (currentRole === 'director') {
+      area.innerHTML = `
+        <button class="btn btn-primary" onclick="directorFinalApprove()" ${isLocked || currentReportStatus !== 'pending_director' ? 'disabled' : ''}><i class="fa-solid fa-stamp"></i> Approve & Issue Final Stamp</button>
+        <button class="btn btn-danger" onclick="window.print()"><i class="fa-solid fa-print"></i> Print Official PDF</button>
+      `;
+    }
+  }
+
+  async function doctorSignAndForward() {
+    if (!currentReportId) {
+      alert("Please select or save a report first.");
+      return;
+    }
+    const docName = document.getElementById('in_doc').value || "Dr. Ahmed Mansour";
+    const { error } = await supabaseClient
+      .from('medical_reports')
+      .update({
+        status: 'pending_director',
+        doctor_signed_at: new Date().toISOString()
+      })
+      .eq('id', currentReportId);
+
+    if (error) {
+      alert("Error signing: " + error.message);
+    } else {
+      currentReportStatus = 'pending_director';
+      alert(`Report signed successfully by ${docName} and forwarded to Medical Director!`);
+      loadLatestReports();
+      renderReport();
+    }
+  }
+
+  async function directorFinalApprove() {
+    if (!currentReportId) {
+      alert("Please select a report first.");
+      return;
+    }
+    const { error } = await supabaseClient
+      .from('medical_reports')
+      .update({
+        status: 'final',
+        director_approved_at: new Date().toISOString()
+      })
+      .eq('id', currentReportId);
+
+    if (error) {
+      alert("Error approving: " + error.message);
+    } else {
+      currentReportStatus = 'final';
+      alert("Report Approved, Verified, and Stamped with Sinai Clinic Official Seal!");
+      loadLatestReports();
+      renderReport();
+    }
+  }
+
+  async function loadLatestReports() {
+    const select = document.getElementById('cloudReportSelect');
+    const { data, error } = await supabaseClient
+      .from('medical_reports')
+      .select('id, report_no, patient_name, status, created_at')
+      .order('created_at', { ascending: false })
+      .limit(15);
+
+    if (error) {
+      console.error(error);
+      return;
+    }
+
+    select.innerHTML = '<option value="">-- Select a saved report from cloud --</option>';
+    data.forEach(rep => {
+      const opt = document.createElement('option');
+      opt.value = rep.id;
+      opt.innerText = `${rep.report_no} - ${rep.patient_name} [${rep.status.toUpperCase()}]`;
+      if (rep.id === currentReportId) opt.selected = true;
+      select.appendChild(opt);
+    });
+  }
+
+  async function fetchReportDetails(id) {
+    if (!id) return;
+    const { data, error } = await supabaseClient
+      .from('medical_reports')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error || !data) return;
+
+    currentReportId = data.id;
+    currentReportStatus = data.status;
+
+    document.getElementById('in_name').value = data.patient_name || "";
+    document.getElementById('in_mrn').value = data.mrn || "";
+    document.getElementById('in_age').value = data.dob_age || "";
+    document.getElementById('in_nat').value = data.nationality_id || "";
+    document.getElementById('in_type').value = data.patient_type || "";
+    document.getElementById('in_ins').value = data.insurance_company || "";
+    document.getElementById('in_gop').value = data.gop_approval_no || "";
+    document.getElementById('in_room').value = data.location_room || "";
+    document.getElementById('in_complaint').value = data.chief_complaint || "";
+    document.getElementById('in_exam').value = data.examination_findings || "";
+    document.getElementById('in_history').value = data.medical_history || "";
+    document.getElementById('in_invest').value = data.investigations || "";
+    document.getElementById('in_diag').value = data.diagnosis || "";
+    document.getElementById('in_icd').value = data.icd_10 || "";
+    document.getElementById('in_plan').value = data.recommendations || "";
+    document.getElementById('in_leave').value = data.sick_leave || "";
+    document.getElementById('in_fit').value = data.fitness_statement || "";
+
+    if (data.vitals) {
+      document.getElementById('in_bp').value = data.vitals.bp || "";
+      document.getElementById('in_pulse').value = data.vitals.pulse || "";
+      document.getElementById('in_temp').value = data.vitals.temp || "";
+      document.getElementById('in_spo2').value = data.vitals.spo2 || "";
+      document.getElementById('in_pain').value = data.vitals.pain || "";
+    }
+
+    // تعبئة الأدوية
+    const tbody = document.getElementById('medInputBody');
+    tbody.innerHTML = '';
+    if (data.medications && Array.isArray(data.medications)) {
+      data.medications.forEach(m => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><input type="text" class="med-name" value="${m.name || ''}" oninput="renderReport()"></td>
+          <td><input type="text" class="med-dose" value="${m.dose || ''}" oninput="renderReport()"></td>
+          <td><input type="text" class="med-route" value="${m.route || ''}" oninput="renderReport()"></td>
+          <td><input type="text" class="med-freq" value="${m.freq || ''}" oninput="renderReport()"></td>
+          <td><button class="btn btn-danger btn-sm" onclick="deleteMedRow(this)"><i class="fa-solid fa-trash"></i></button></td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    document.getElementById('lbl_report_no').innerText = data.report_no;
+    renderReport();
+    updateActionButtons();
+  }
+
+  function toggleLanguage() {
+    currentLang = currentLang === 'en' ? 'ar' : 'en';
+    const sheet = document.getElementById('reportSheet');
+    if (currentLang === 'ar') sheet.classList.add('rtl-mode');
+    else sheet.classList.remove('rtl-mode');
+    renderReport();
+  }
+
+  function addMedRow() {
+    const tbody = document.getElementById('medInputBody');
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><input type="text" class="med-name" placeholder="Drug name" oninput="renderReport()"></td>
+      <td><input type="text" class="med-dose" placeholder="Dose" oninput="renderReport()"></td>
+      <td><input type="text" class="med-route" placeholder="Route" oninput="renderReport()"></td>
+      <td><input type="text" class="med-freq" placeholder="Freq" oninput="renderReport()"></td>
+      <td><button class="btn btn-danger btn-sm" onclick="deleteMedRow(this)"><i class="fa-solid fa-trash"></i></button></td>
+    `;
+    tbody.appendChild(tr);
+    renderReport();
+  }
+
+  function deleteMedRow(btn) {
+    btn.closest('tr').remove();
+    renderReport();
+  }
+
+  function renderReport() {
+    const t = dict[currentLang];
+    document.getElementById('langBtnText').innerText = t.btnLang;
+    document.getElementById('lbl_report_title').innerText = t.reportTitle;
+    document.getElementById('lbl_doc_title').innerText = t.physician;
+    document.getElementById('lbl_dir_title').innerText = t.director;
+    document.getElementById('lbl_qr_verify').innerText = t.qrText;
+
+    // شارة الحالة
+    const statusBadge = document.getElementById('lbl_status');
+    statusBadge.className = 'status-badge';
+    if (currentReportStatus === 'draft') {
+      statusBadge.classList.add('status-draft');
+      statusBadge.innerText = t.statusDraft;
+    } else if (currentReportStatus === 'pending_doctor') {
+      statusBadge.classList.add('status-doctor');
+      statusBadge.innerText = t.statusPendingDoctor;
+    } else if (currentReportStatus === 'pending_director') {
+      statusBadge.classList.add('status-doctor');
+      statusBadge.innerText = t.statusPendingDirector;
+    } else if (currentReportStatus === 'final') {
+      statusBadge.classList.add('status-final');
+      statusBadge.innerText = t.statusFinal;
+    }
+
+    // التوقيعات
+    const docSig = document.getElementById('out_doc_sig');
+    const dirSig = document.getElementById('out_dir_sig');
+    if (currentReportStatus === 'pending_director' || currentReportStatus === 'final') {
+      docSig.innerHTML = `<span style="color:var(--navy-blue); font-weight:bold;">${document.getElementById('in_doc').value || "Dr. Ahmed Mansour"}</span>`;
+      document.getElementById('doc_sig_status').innerText = "Digitally Signed";
+    } else {
+      docSig.innerHTML = `<span style="color:#90A4AE;">Pending Signature</span>`;
+      document.getElementById('doc_sig_status').innerText = "Waiting for Doctor review";
+    }
+
+    if (currentReportStatus === 'final') {
+      dirSig.innerHTML = `<span style="color:var(--medical-red); font-weight:bold;"><i class="fa-solid fa-stamp"></i> APPROVED</span>`;
+      document.getElementById('dir_sig_status').innerText = "Sinai Clinic Verified";
+    } else {
+      dirSig.innerHTML = `<span style="color:#90A4AE;">Pending Approval</span>`;
+      document.getElementById('dir_sig_status').innerText = "Sinai Clinic Administration";
+    }
+
+    // بيانات المريض
+    const patientFields = [
+      { label: t.name, val: document.getElementById('in_name').value },
+      { label: t.mrn, val: document.getElementById('in_mrn').value },
+      { label: t.age, val: document.getElementById('in_age').value },
+      { label: t.nat, val: document.getElementById('in_nat').value },
+      { label: t.type, val: document.getElementById('in_type').value },
+      { label: t.ins, val: document.getElementById('in_ins').value },
+      { label: t.gop, val: document.getElementById('in_gop').value },
+      { label: t.room, val: document.getElementById('in_room').value }
+    ];
+    let patHtml = '';
+    patientFields.forEach(f => {
+      if (f.val && f.val.trim() !== '') patHtml += `<div><span class="field-label">${f.label}</span><span class="field-val">${f.val}</span></div>`;
+    });
+    document.getElementById('patientInfoGrid').innerHTML = patHtml;
+
+    // العلامات الحيوية
+    const vitals = [
+      { label: 'BP', val: document.getElementById('in_bp').value, unit: 'mmHg' },
+      { label: 'Pulse', val: document.getElementById('in_pulse').value, unit: 'bpm' },
+      { label: 'Temp', val: document.getElementById('in_temp').value, unit: '°C' },
+      { label: 'SpO2', val: document.getElementById('in_spo2').value, unit: '' },
+      { label: 'Pain', val: document.getElementById('in_pain').value, unit: '' }
+    ];
+    let vitHtml = '';
+    vitals.forEach(v => {
+      if (v.val && v.val.trim() !== '') vitHtml += `<div class="vital-pill">${v.label}: <span>${v.val} ${v.unit}</span></div>`;
+    });
+    document.getElementById('vitalsStrip').innerHTML = vitHtml;
+
+    // الكتل السريرية
+    const blocks = [
+      { title: t.complaintTitle, val: document.getElementById('in_complaint').value },
+      { title: t.historyTitle, val: document.getElementById('in_history').value },
+      { title: t.examTitle, val: document.getElementById('in_exam').value },
+      { title: t.investTitle, val: document.getElementById('in_invest').value },
+      { 
+        title: t.diagTitle, 
+        val: document.getElementById('in_diag').value,
+        extra: document.getElementById('in_icd').value ? ` [ICD-10: ${document.getElementById('in_icd').value}]` : ''
+      },
+      { title: t.planTitle, val: document.getElementById('in_plan').value }
+    ];
+    let blkHtml = '';
+    blocks.forEach(b => {
+      if (b.val && b.val.trim() !== '') {
+        blkHtml += `
+          <div class="clinical-block">
+            <div class="block-header">${b.title}</div>
+            <div class="block-content">${b.val} ${b.extra || ''}</div>
+          </div>
+        `;
+      }
+    });
+    document.getElementById('clinicalBlocksContainer').innerHTML = blkHtml;
+
+    // جدول الأدوية
+    const medRows = document.querySelectorAll('#medInputBody tr');
+    let validMeds = [];
+    medRows.forEach(tr => {
+      const name = tr.querySelector('.med-name').value.trim();
+      const dose = tr.querySelector('.med-dose').value.trim();
+      const route = tr.querySelector('.med-route').value.trim();
+      const freq = tr.querySelector('.med-freq').value.trim();
+      if (name) validMeds.push({ name, dose, route, freq });
+    });
+
+    const medSec = document.getElementById('medicationSection');
+    if (validMeds.length > 0) {
+      let medTable = `
+        <div class="block-header">${t.medTitle}</div>
+        <table class="rep-table">
+          <thead>
+            <tr><th>${t.thDrug}</th><th>${t.thDose}</th><th>${t.thRoute}</th><th>${t.thFreq}</th></tr>
+          </thead>
+          <tbody>
+      `;
+      validMeds.forEach(m => {
+        medTable += `<tr><td><strong>${m.name}</strong></td><td>${m.dose}</td><td>${m.route}</td><td>${m.freq}</td></tr>`;
+      });
+      medTable += `</tbody></table>`;
+      medSec.innerHTML = medTable;
+    } else {
+      medSec.innerHTML = '';
+    }
+
+    // الإجازة
+    const leave = document.getElementById('in_leave').value.trim();
+    const fit = document.getElementById('in_fit').value.trim();
+    const fitSec = document.getElementById('fitnessSection');
+    if (leave || fit) {
+      fitSec.innerHTML = `
+        <div class="fitness-box">
+          <i class="fa-solid fa-file-signature"></i> <strong>${t.fitnessTitle}:</strong>
+          ${leave ? `<div>• ${leave}</div>` : ''}
+          ${fit ? `<div>• ${fit}</div>` : ''}
+        </div>
+      `;
+    } else {
+      fitSec.innerHTML = '';
+    }
+
+    updateQRCode();
+  }
+
+  function updateQRCode() {
+    const qrDiv = document.getElementById('qrcode');
+    qrDiv.innerHTML = "";
+    const repNo = document.getElementById('lbl_report_no').innerText;
+    const reportData = `https://sinaiclinic.example/verify?rep=${repNo}&patient=${encodeURIComponent(document.getElementById('in_name').value)}`;
+    new QRCode(qrDiv, {
+      text: reportData,
+      width: 60,
+      height: 60,
+      colorDark : "#0D47A1",
+      colorLight : "#ffffff",
+      correctLevel : QRCode.CorrectLevel.H
+    });
+  }
+
+  async function saveToSupabase(targetStatus) {
+    const medRows = document.querySelectorAll('#medInputBody tr');
+    let medicationsArray = [];
+    medRows.forEach(tr => {
+      const name = tr.querySelector('.med-name').value.trim();
+      const dose = tr.querySelector('.med-dose').value.trim();
+      const route = tr.querySelector('.med-route').value.trim();
+      const freq = tr.querySelector('.med-freq').value.trim();
+      if (name) medicationsArray.push({ name, dose, route, freq });
+    });
+
+    const reportNo = document.getElementById('lbl_report_no').innerText.startsWith("MR-2026-000001") 
+      ? "MR-" + new Date().getFullYear() + "-" + Math.floor(100000 + Math.random() * 900000)
+      : document.getElementById('lbl_report_no').innerText;
+
+    const payload = {
+      report_no: reportNo,
+      status: targetStatus,
+      patient_name: document.getElementById('in_name').value,
+      mrn: document.getElementById('in_mrn').value,
+      dob_age: document.getElementById('in_age').value,
+      nationality_id: document.getElementById('in_nat').value,
+      patient_type: document.getElementById('in_type').value,
+      insurance_company: document.getElementById('in_ins').value,
+      gop_approval_no: document.getElementById('in_gop').value,
+      location_room: document.getElementById('in_room').value,
+      chief_complaint: document.getElementById('in_complaint').value,
+      examination_findings: document.getElementById('in_exam').value,
+      medical_history: document.getElementById('in_history').value,
+      investigations: document.getElementById('in_invest').value,
+      diagnosis: document.getElementById('in_diag').value,
+      icd_10: document.getElementById('in_icd').value,
+      medications: medicationsArray,
+      recommendations: document.getElementById('in_plan').value,
+      sick_leave: document.getElementById('in_leave').value,
+      fitness_statement: document.getElementById('in_fit').value,
+      vitals: {
+        bp: document.getElementById('in_bp').value,
+        pulse: document.getElementById('in_pulse').value,
+        temp: document.getElementById('in_temp').value,
+        spo2: document.getElementById('in_spo2').value,
+        pain: document.getElementById('in_pain').value
+      }
+    };
+
+    try {
+      let resp;
+      if (currentReportId) {
+        resp = await supabaseClient.from('medical_reports').update(payload).eq('id', currentReportId);
+      } else {
+        resp = await supabaseClient.from('medical_reports').insert([payload]).select().single();
+        if (resp.data) currentReportId = resp.data.id;
+      }
+
+      if (resp.error) throw resp.error;
+
+      currentReportStatus = targetStatus;
+      document.getElementById('lbl_report_no').innerText = reportNo;
+      alert(`Report saved successfully as [${targetStatus.toUpperCase()}]!`);
+      loadLatestReports();
+      renderReport();
+      updateActionButtons();
+    } catch (err) {
+      alert("Error: " + err.message);
+    }
+  }
+
+  window.onload = function() {
+    loadLatestReports();
+    renderReport();
+    updateActionButtons();
+  };
+</script>
+
+</body>
+</html>
